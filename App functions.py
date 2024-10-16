@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MongoDB connection using environment variable for security
-client = MongoClient(os.getenv('MONGO_URI'))  # Ensure your MONGO_URI is in your .env file
+client = MongoClient(os.getenv('MONGO_URI'))  # Ensure that MONGO_URI is in our .env file
 db = client['App']  # Database name
 users_collection = db['user_info']  # Collection name for storing user data
 
