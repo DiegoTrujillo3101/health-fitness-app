@@ -164,3 +164,36 @@ def change_weight(username, new_weight):
         print(f"Weight updated to {new_weight} lbs.")
     else:
         print("User not found.")
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Function to increase water consumption by 1 cup
+def increase_water_consumption(username):
+    user = users_collection.find_one({"username": username})
+    if user:
+        users_collection.update_one({"username": username}, {"$inc": {"water_consumed": 1}})
+        print(f"Water consumption increased by 1 cup for {username}.")
+    else:
+        print("User not found.")
+
+# Function to decrease water consumption by 1 cup (cannot go below 0)
+def decrease_water_consumption(username):
+    user = users_collection.find_one({"username": username})
+    if user:
+        if user["water_consumed"] > 0:
+            users_collection.update_one({"username": username}, {"$inc": {"water_consumed": -1}})
+            print(f"Water consumption decreased by 1 cup for {username}.")
+        else:
+            print("Cannot decrease further, water consumption is already at 0.")
+    else:
+        print("User not found.")
+
+# Function to get the current water consumption for a user
+def get_water_consumption(username):
+    user = users_collection.find_one({"username": username})
+    if user:
+        return user["water_consumed"]
+    else:
+        return "User not found."
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
