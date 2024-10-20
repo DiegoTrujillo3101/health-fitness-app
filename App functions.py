@@ -1,36 +1,51 @@
 #  This is where the backend code for the app will go
 from pymongo import MongoClient
 import hashlib
+import os
+from dotenv import load_dotenv
 
-# MongoDB connection
-client = MongoClient('mongodb+srv://datrujillo2099:TGwUy3xi6XyXfztY@cluster0.dgiwn.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')  # Replace with your MongoDB URI if needed
-db = client['App']  # database name
-users_collection = db['user info']  # Collection name for storing user data
+# Load environment variables from .env file (for MongoDB URI)
+load_dotenv()
+
+# MongoDB connection using environment variable for security
+client = MongoClient(os.getenv('MONGO_URI'))  # Ensure that MONGO_URI is in our .env file
+db = client['App']  # Database name
+users_collection = db['user_info']  # Collection name for storing user data
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Function to hash passwords for secure storage
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+# Generate a random salt
+def generate_salt():
+    return os.urandom(16).hex()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Function to register a new user
+# Function to hash passwords with salt
+def hash_password(password, salt):
+    return hashlib.sha256((password + salt).encode()).hexdigest()
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Function to register a new user with salt and hashed password
 def register_user(username, password, sex, height, weight):
     # Check if the username already exists
     if users_collection.find_one({"username": username}):
         print("Username already exists.")
     else:
-        hashed_password = hash_password(password)
-        user_data = {
-            "username": username,
-            "password": hashed_password,
-            "sex": sex,
-            "height": height,
-            "weight": weight,
-            "heart_rate": [],
-            "blood_pressure": []
-        }
-        users_collection.insert_one(user_data)
-        print(f"User {username} registered successfully.")
+        try:
+            salt = generate_salt()  # Generate a salt for this user
+            hashed_password = hash_password(password, salt)
+            user_data = {
+                "username": username,
+                "password": hashed_password,
+                "salt": salt,  # Store the salt in the database
+                "sex": sex,
+                "height": height,
+                "weight": weight,
+                "heart_rate": [],
+                "blood_pressure": []
+            }
+            users_collection.insert_one(user_data)
+            print(f"User {username} registered successfully.")
+        except Exception as e:
+            print(f"An error occurred during registration: {e}")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Function to convert height from feet to inches for calculation purposes
@@ -54,7 +69,7 @@ def calculate_bmr(sex, weight, age, height_in_feet):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Function to calculate Daily calories based on activity level of the person
-def calculate_Daily_Calorie_intake(BMR_value, Activity):
+def calculate_daily_calorie_intake(bmr_value, activity):
     activity_levels = {
         "Sedentary": 1.2,
         "Lightly Active": 1.375,
@@ -63,14 +78,14 @@ def calculate_Daily_Calorie_intake(BMR_value, Activity):
         "Extremely Active": 1.9
     }
 
-    if Activity in activity_levels:
-        return int(BMR_value * activity_levels[Activity])
+    if activity in activity_levels:
+        return int(bmr_value * activity_levels[activity])
     else:
         raise ValueError("Error: Invalid activity level")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Functions to log heart rate and find its average
-def Heart_Rate_Log(username, heart_rate_input):
+def heart_rate_log(username, heart_rate_input):
     user = users_collection.find_one({"username": username})
     if user:
         users_collection.update_one({"username": username}, {"$push": {"heart_rate": heart_rate_input}})
@@ -78,7 +93,7 @@ def Heart_Rate_Log(username, heart_rate_input):
     else:
         print("User not found. Please register first.")
 
-def Average_Heart_Rate(username):
+def average_heart_rate(username):
     user = users_collection.find_one({"username": username})
     if user and user["heart_rate"]:
         heart_rates = user["heart_rate"]
@@ -89,24 +104,63 @@ def Average_Heart_Rate(username):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Functions to log blood pressure and find their average
-def Blood_Pressure_Log(username, systolic, diastolic):
+def blood_pressure_log(username, systolic, diastolic):
     user = users_collection.find_one({"username": username})
     if user:
-        users_collection.update_one({"username": username}, {"$push": {"blood_pressure": (systolic, diastolic)}})
+        users_collection.update_one({"username": username}, {"$push": {"blood_pressure": {"systolic": systolic, "diastolic": diastolic}}})
         print(f"Blood pressure logged for {username}.")
     else:
         print("User not found. Please register first.")
 
-def Average_Blood_Pressure(username):
+def average_blood_pressure(username):
     user = users_collection.find_one({"username": username})
     if user and user["blood_pressure"]:
         blood_pressures = user["blood_pressure"]
-        total_systolic = sum(bp[0] for bp in blood_pressures)
-        total_diastolic = sum(bp[1] for bp in blood_pressures)
+        total_systolic = sum(bp["systolic"] for bp in blood_pressures)
+        total_diastolic = sum(bp["diastolic"] for bp in blood_pressures)
         average_systolic = total_systolic / len(blood_pressures)
         average_diastolic = total_diastolic / len(blood_pressures)
         return int(average_systolic), int(average_diastolic)
     else:
         return "No blood pressure data available."
 
-register_user("johnDoe", "password123", "Male", 5.9, 180)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Function to update user's password with salt
+def change_password(username, old_password, new_password):
+    user = users_collection.find_one({"username": username})
+    if user:
+        old_salt = user["salt"]
+        if user["password"] == hash_password(old_password, old_salt):
+            new_salt = generate_salt()
+            users_collection.update_one({"username": username}, {"$set": {
+                "password": hash_password(new_password, new_salt),
+                "salt": new_salt
+            }})
+            print("Password changed successfully.")
+        else:
+            print("Old password is incorrect.")
+    else:
+        print("User not found.")
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Function to update user's username
+def change_username(old_username, new_username):
+    user = users_collection.find_one({"username": old_username})
+    if user:
+        if not users_collection.find_one({"username": new_username}):  # Ensure new username doesn't exist
+            users_collection.update_one({"username": old_username}, {"$set": {"username": new_username}})
+            print(f"Username changed to {new_username}.")
+        else:
+            print("New username already taken.")
+    else:
+        print("Old username not found.")
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Function to update user's weight
+def change_weight(username, new_weight):
+    user = users_collection.find_one({"username": username})
+    if user:
+        users_collection.update_one({"username": username}, {"$set": {"weight": new_weight}})
+        print(f"Weight updated to {new_weight} lbs.")
+    else:
+        print("User not found.")
