@@ -40,13 +40,13 @@ def register_user(username, password, sex, height, weight):
                 "height": height,
                 "weight": weight,
                 "heart_rate": [],
-                "blood_pressure": []
+                "blood_pressure": [],
+                "water_consumed": 0  # Initialize water consumed to 0 cups
             }
             users_collection.insert_one(user_data)
             print(f"User {username} registered successfully.")
         except Exception as e:
             print(f"An error occurred during registration: {e}")
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Function to convert height from feet to inches for calculation purposes
 def feet_to_inches(feet):
