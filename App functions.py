@@ -47,6 +47,29 @@ def register_user(username, password, sex, height, weight):
             print(f"An error occurred during registration: {e}")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Function to log in a user
+def login_user(username, password):
+    # Retrieve the user by their username
+    user = users_collection.find_one({"username": username})
+    
+    if user:
+        # Get the salt stored in the database for this user
+        salt = user["salt"]
+        
+        # Hash the entered password with the stored salt
+        hashed_password = hash_password(password, salt)
+        
+        # Compare the entered hashed password with the stored hashed password
+        if hashed_password == user["password"]:
+            print("Login successful!")
+            return True
+        else:
+            print("Incorrect password.")
+            return False
+    else:
+        print("Username not found.")
+        return False
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Function to convert height from feet to inches for calculation purposes
 def feet_to_inches(feet):
     whole_feet = int(feet)
@@ -163,9 +186,54 @@ def change_weight(username, new_weight):
         print(f"Weight updated to {new_weight} lbs.")
     else:
         print("User not found.")
+        
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Define the workout structure with muscle groups and exercises
+workouts = {
+    "Chest": ["Bench Press", "Chest Fly", "Push-Up"],
+    "Back": ["Pull-Up", "Deadlift", "Bent-Over Row"],
+    "Legs": ["Squat", "Leg Press", "Lunges"],
+    "Arms": ["Bicep Curl", "Tricep Extension", "Hammer Curl"],
+    "Shoulders": ["Shoulder Press", "Lateral Raise", "Front Raise"],
+    "Abs": ["Crunch", "Plank", "Leg Raise"]
+}
 
-# Example usage:
-register_user("johnDoe", "password123", "Male", 5.9, 180)
-change_password("johnDoe", "password123", "newPassword456")
-change_username("johnDoe", "johnDoe99")
-change_weight("johnDoe99", 190)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Function to log a workout for a user
+def log_workout(username, muscle_group, exercise, reps_steps):
+    user = users_collection.find_one({"username": username})
+    if user:
+        # Ensure the exercise exists in the predefined workouts
+        if muscle_group in workouts and exercise in workouts[muscle_group]:
+            workout_entry = {
+                "muscle_group": muscle_group,
+                "exercise": exercise,
+                "reps_steps": reps_steps
+            }
+            # Append workout entry to the user's workout log
+            users_collection.update_one({"username": username}, {"$push": {"workouts": workout_entry}})
+            print(f"Workout logged for {username}: {exercise} - {reps_steps}")
+        else:
+            print("Invalid muscle group or exercise.")
+    else:
+        print("User not found. Please register first.")
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Function to view a user's workout log
+def view_workout_log(username):
+    user = users_collection.find_one({"username": username})
+    if user and "workouts" in user:
+        print(f"Workout log for {username}:")
+        for workout in user["workouts"]:
+            print(f"{workout['muscle_group']} - {workout['exercise']}: {workout['reps_steps']}")
+    else:
+        print("No workout data available or user not found.")
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Function to view available workouts by muscle group
+def view_available_workouts():
+    print("Available workouts:")
+    for muscle_group, exercises in workouts.items():
+        print(f"{muscle_group}: {', '.join(exercises)}")
+
+
